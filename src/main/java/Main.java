@@ -42,7 +42,7 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) {
         originalDatabase = new ArrayList<>();
-        filteredDatabase = new ArrayList<>();
+        filteredDatabase = Collections.synchronizedList(new ArrayList<>()); // synchronizedList dla bezpieczeństwa
 
         // Wczytaj plik words.txt z katalogu zasobów
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/main/resources/words.txt")))) {
@@ -119,12 +119,14 @@ public class Main extends Application {
         }
     }
 
-    private synchronized void clearInput() {
-        inputField.clear();
-        wordList.getItems().clear();
-        infoLabel.setText("");
-        filteredDatabase.clear();
-        filteredDatabase.addAll(originalDatabase);
+    private void clearInput() {
+        Platform.runLater(() -> {
+            inputField.clear();
+            wordList.getItems().clear();
+            infoLabel.setText("");
+            filteredDatabase.clear();
+            filteredDatabase.addAll(originalDatabase);
+        });
     }
 
     private List<String> findWords(String inputLetters) {
@@ -177,17 +179,19 @@ public class Main extends Application {
     }
 
     private void updateWordList(List<String> foundWords) {
-        foundWords.sort(String::compareToIgnoreCase);
+        Platform.runLater(() -> {
+            foundWords.sort(String::compareToIgnoreCase);
 
-        ObservableList<String> words = FXCollections.observableArrayList(foundWords);
-        wordList.setItems(words);
+            ObservableList<String> words = FXCollections.observableArrayList(foundWords);
+            wordList.setItems(words);
 
-        if (foundWords.isEmpty()) {
-            infoLabel.setText("Nie znaleziono żadnego słowa.");
-            infoLabel.setStyle("-fx-text-fill: red;");
-        } else {
-            infoLabel.setText("Oto pasujące słowa:");
-            infoLabel.setStyle("-fx-text-fill: green;");
-        }
+            if (foundWords.isEmpty()) {
+                infoLabel.setText("Nie znaleziono żadnego słowa.");
+                infoLabel.setStyle("-fx-text-fill: red;");
+            } else {
+                infoLabel.setText("Oto pasujące słowa:");
+                infoLabel.setStyle("-fx-text-fill: green;");
+            }
+        });
     }
 }
