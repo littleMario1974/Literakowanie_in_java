@@ -115,7 +115,7 @@ public class Main extends Application {
         }
     }
 
-    private void clearInput() {
+    private synchronized void clearInput() {
         inputField.clear();
         wordList.getItems().clear();
         infoLabel.setText("");
@@ -130,11 +130,13 @@ public class Main extends Application {
             for (char c : POLISH_LETTERS.toCharArray()) {
                 String inputWithReplacement = inputLetters.replaceFirst(" ", String.valueOf(c));
                 foundWords.addAll(filteredDatabase.stream()
+                        .filter(Objects::nonNull) // Filtruj null
                         .filter(word -> canFormWord(word.toLowerCase(), inputWithReplacement))
                         .collect(Collectors.toList()));
             }
         } else {
             foundWords.addAll(filteredDatabase.stream()
+                    .filter(Objects::nonNull) // Filtruj null
                     .filter(word -> canFormWord(word.toLowerCase(), inputLetters))
                     .collect(Collectors.toList()));
         }
@@ -143,7 +145,7 @@ public class Main extends Application {
     }
 
     private boolean canFormWord(String word, String inputLetters) {
-        if (word.length() != inputLetters.length()) {
+        if (word == null || inputLetters == null || word.length() != inputLetters.length()) {
             return false;
         }
 
