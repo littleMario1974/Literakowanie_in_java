@@ -19,9 +19,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Main extends Application {
+    private static final Logger logger = Logger.getLogger(Main.class.getName());
+
     private List<String> originalDatabase;
     private List<String> filteredDatabase;
     private TextField inputField;
@@ -47,7 +51,7 @@ public class Main extends Application {
                 originalDatabase.addAll(Arrays.asList(line.split("\\s+")));
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.log(Level.SEVERE, "Błąd podczas wczytywania pliku words.txt", e);
         }
 
         filteredDatabase.addAll(originalDatabase);
