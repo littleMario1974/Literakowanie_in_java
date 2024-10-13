@@ -19,6 +19,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -28,6 +30,8 @@ public class Main extends Application {
 
     private List<String> originalDatabase;
     private List<String> filteredDatabase;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock(); // Dodanie ReadWriteLock
+
     private TextField inputField;
     private ListView<String> wordList;
     private Label infoLabel;
@@ -42,7 +46,7 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) {
         originalDatabase = new ArrayList<>();
-        filteredDatabase = Collections.synchronizedList(new ArrayList<>()); // synchronizedList dla bezpieczeństwa
+        filteredDatabase = new ArrayList<>(); // Usunięcie synchronizedList, bo używamy ReadWriteLock
 
         // Wczytaj plik words.txt z katalogu zasobów
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/main/resources/words.txt")))) {
@@ -103,14 +107,11 @@ public class Main extends Application {
                 infoLabel.setText("Szukam...");
                 infoLabel.setStyle("-fx-text-fill: red;");
 
-                // Skopiuj wartość inputLetters do finalnej zmiennej
                 final String finalInputLetters = inputLetters;
 
-                // Przenieś operację wyszukiwania do osobnego wątku
                 new Thread(() -> {
                     List<String> foundWords = findWords(finalInputLetters);
 
-                    // Użyj Platform.runLater do aktualizacji interfejsu użytkownika
                     Platform.runLater(() -> updateWordList(foundWords));
                 }).start();
             } else {
@@ -124,27 +125,40 @@ public class Main extends Application {
             inputField.clear();
             wordList.getItems().clear();
             infoLabel.setText("");
-            filteredDatabase.clear();
-            filteredDatabase.addAll(originalDatabase);
+
+            lock.writeLock().lock(); // Blokada zapisu przy czyszczeniu listy
+            try {
+                filteredDatabase.clear();
+                filteredDatabase.addAll(originalDatabase);
+            } finally {
+                lock.writeLock().unlock();
+            }
         });
     }
 
     private List<String> findWords(String inputLetters) {
         List<String> foundWords = new ArrayList<>();
 
-        if (inputLetters.contains(" ")) {
-            for (char c : POLISH_LETTERS.toCharArray()) {
-                String inputWithReplacement = inputLetters.replaceFirst(" ", String.valueOf(c));
-                foundWords.addAll(filteredDatabase.stream()
-                        .filter(Objects::nonNull) // Filtruj null
-                        .filter(word -> canFormWord(word.toLowerCase(), inputWithReplacement))
+        lock.readLock().lock(); // Blokada odczytu przy dostępie do filteredDatabase
+        try {
+            List<String> localDatabase = new ArrayList<>(filteredDatabase);
+
+            if (inputLetters.contains(" ")) {
+                for (char c : POLISH_LETTERS.toCharArray()) {
+                    String inputWithReplacement = inputLetters.replaceFirst(" ", String.valueOf(c));
+                    foundWords.addAll(localDatabase.stream()
+                            .filter(Objects::nonNull)
+                            .filter(word -> canFormWord(word.toLowerCase(), inputWithReplacement))
+                            .collect(Collectors.toList()));
+                }
+            } else {
+                foundWords.addAll(localDatabase.stream()
+                        .filter(Objects::nonNull)
+                        .filter(word -> canFormWord(word.toLowerCase(), inputLetters))
                         .collect(Collectors.toList()));
             }
-        } else {
-            foundWords.addAll(filteredDatabase.stream()
-                    .filter(Objects::nonNull) // Filtruj null
-                    .filter(word -> canFormWord(word.toLowerCase(), inputLetters))
-                    .collect(Collectors.toList()));
+        } finally {
+            lock.readLock().unlock();
         }
 
         return foundWords;
@@ -155,7 +169,6 @@ public class Main extends Application {
             return false;
         }
 
-        // Tworzymy mapę do zliczania liter z polskimi literami
         Map<Character, Integer> letterCounts = new HashMap<>();
         for (char c : POLISH_LETTERS.toCharArray()) {
             letterCounts.put(c, 0);
